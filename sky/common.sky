@@ -1,0 +1,142 @@
+c     common.sky
+
+c (c) Michiel Hogerheijde / Floris van der Tak 2000
+c     michiel@strw.leidenuniv.nl, vdtak@sron.nl
+c     http://www.sron.rug.nl/~vdtak/ratran/
+
+c     This file is part of the 'ratran' molecular excitation and
+c     radiative transfer code. The one-dimensional version of this code
+c     is publicly available; the two-dimensional version is available on
+c     collaborative basis. Although the code has been thoroughly tested,
+c     the authors do not claim that it is free of errors or that it gives
+c     correct results in all situations. Any publication making use of
+c     this code should include a reference to Hogerheijde & van der Tak,
+c     2000, A&A 362, 697.
+
+c     For revision history see http://www.sron.rug.nl/~vdtak/ratran/
+
+c     Common definitions for sky.
+c     Note that this is only only a "template" file. The sky+
+c     c-script will append this to a section it generates
+c     from the keyword input file. If this comment block is not
+c     at the top of the file, you're looking at such an automatically
+c     generated file.
+
+      DOUBLE PRECISION negtaulim
+      PARAMETER (negtaulim = -30.0d0)
+      CHARACTER*10 units
+      DOUBLE PRECISION ucon(maxrx),norm(maxrx),tnorm
+      COMMON /cstuff/ units
+      COMMON /dstuff/ ucon,norm,tnorm
+
+c     negtaulim: limit to allowed negative tau. exp(-30)=1.1d13 seemed ok...
+c     units:     output units ( K | Jypx )
+c     ucon:      unit conversion (from W/m2/Hz/sr -> UNIT)
+c     norm:      flexible normalization scheme for intensities
+c     tnorm:     blackbody temperature of normalization scheme = Tcmb by
+c     _          default
+
+c     -----------------------------------------------------------------
+
+c     Physical parameters and derivatives.
+
+      DOUBLE PRECISION pi,spi,clight,hplanck,kboltz,pc,amu,eps,delta
+     $  ,hpip
+      PARAMETER (pi = 3.14159265d0)            ! pi
+      PARAMETER (spi = 1.77245385d0)           ! sqrt(pi)
+      PARAMETER (clight = 2.99792458d8)        ! speed of light
+      PARAMETER (hplanck = 6.626d-34)          ! Planck constant
+      PARAMETER (kboltz = 1.380658d-23)        ! Boltzmann constant
+      PARAMETER (pc = 3.0857d16)               ! parsec in m
+      PARAMETER (amu=1.6605402d-27)            ! atomic mass unit
+      PARAMETER (eps=1.0d-30)                  ! epsilon
+      PARAMETER (delta=1.0d-10)                ! used in photon propgation
+      PARAMETER (hpip = hplanck*clight/4.0d0/pi/spi) ! scales intensities
+
+c     ----------------------------------------------------------------------
+
+c     Parameters associated with how source is observed.
+      
+      INTEGER nrx,nsky,nchan,vcen,filter(maxrx),zoom,super
+      DOUBLE PRECISION distance,incl,cosi,sini,angres,velres,tbg,tcen
+     $  ,dcen,cmb(maxrx),cen(maxrx),dust(maxrx,maxcell)
+     $  ,intens(maxrx,maxchan,maxsky),taucen(maxrx,maxchan)
+     $  ,fgtau(maxrx),fgtr(maxrx),fgdv,trans(maxrx),fvel,xycen
+      COMMON /observei/ nrx,nsky,nchan,vcen,filter,zoom,super
+      COMMON /observer/ distance,incl,cosi,sini,angres,velres,tbg,tcen
+     $  ,dcen,cmb,cen,intens,taucen,fgtau,fgtr,fgdv,trans,dust,fvel
+     $  ,xycen
+
+c     nrx           -- number of lines for output
+c     nsky          -- number of sky pixels in x AND y directions
+c     nchan         -- number of channels in output cubes
+c     xycen         -- center if sky frame
+c     vcen          -- center of passband
+c     filter        -- filter(i) = corresponding line of i'th output line
+c     zoom          -- number of pixels around source center where
+c                      super resolution has to be used.
+c     super         -- enhancement factor for super resolution
+c     distance      -- distance
+c     incl         -- inclination
+c     cosi,sini     -- cos and sin of incl
+c     angres        -- pixel size
+c     velres        -- channel width
+c     tbg           -- temperature of cmb
+c     tcen          -- temperature of central source (if any)
+c     dcen          -- diameter in m of central source (<< innermost cell)
+c     cmb           -- intensity of cosmic microwave background
+c     cen           -- intensity of central source
+c     dust          -- intensity of dust field
+c     intens        -- sky intensity (one row of image)
+c     taucen        -- opacity of central pixel (for statistics)
+c     fgtau         -- opacity of foreground cloud (if any)
+c     fgtr          -- intensity of foreground cloud (if any)
+c     fgdv          -- velocity width of foreground cloud
+c     fvel          -- offset velocity of fg cloud wrt source
+c     trans         -- initially contains selected transitions *or*
+c     _                continuum frequencies.
+
+c     ---------------------------------------------------------------------
+
+c     Variables concerning the input grid.
+
+      INTEGER ncell,nlev,nline
+      DOUBLE PRECISION ra(maxcell),rb(maxcell),za(maxcell),zb(maxcell),
+     $  nh2(maxcell),nmol(maxcell),doppb(maxcell),vr(maxcell),vz(maxcell
+     $  ),va(maxcell),tdust(maxcell),pops(maxlev,maxcell),rmax,zmax
+     $  ,gas2dust
+      COMMON /sourcei/  ncell,nline,nlev
+      COMMON /sourcer/ ra,rb,za,zb,nh2,nmol,doppb,vr,vz,va,tdust,pops
+     $  ,rmax,zmax,gas2dust
+
+c     ncell:       number of cells
+c     nlev:        number of levels
+c     nline:       number of lines
+c     ra,rb,za,zb: inner,outer R and z of cell [m]
+c     nh2:         H2 number density (required for dust continuum) [m-3]
+c     nmol:        number density of molecule [m-3]
+c     doppb:       Doppler b parameters [m/s]
+c     vr,vz,va:    velocity vector (if not defined through velo) [m/s]
+c     tdust:       dust temperature [K]
+c     pops:        (fractional) level populations 
+c     rmax,zmax:   maximum R,z size of source [m]
+c     gas2dust:    gas-to-dust ratio
+
+c     ---------------------------------------------------------------------
+
+c     Molecular parameters (& dust)
+
+      DOUBLE PRECISION aeinst(maxrx),beinstl(maxrx),beinstu(maxrx)
+     $  ,nu(maxrx),knu(maxrx,maxcell)
+      INTEGER lal(maxline),lau(maxline)
+      COMMON /molr/ aeinst,beinstl,beinstu,nu,knu
+      COMMON /moli/ lal,lau
+
+c     aeinst,beinstl,beinstu: Einstein A, Blu, Bul -constants
+c     nu    -- frequency of transition i
+c     knu   -- dust emissivity * H2 density (= dust_tau per unit length)
+c     lal,lau -- transition i goes from level lau(i) to level lal(i)
+
+c     ---------------------------------------------------------------------
+
+      

@@ -1,0 +1,93 @@
+#! /bin/csh -f
+# Executable C-shell script to configure Ratran 
+# for the current operating system.
+
+#  (c) Michiel Hogerheijde / Floris van der Tak 2000
+#      michiel@strw.leidenuniv.nl, vdtak@sron.rug.nl
+#      http://www.strw.leidenuniv.nl/~michiel
+#      http://www.sron.rug.nl/~vdtak
+
+#  This file is part of the 'ratran' molecular excitation and
+#  radiative transfer code. The one-dimensional version of this code
+#  is publicly available; the two-dimensional version is available on
+#  collaborative basis. Although the code has been thoroughly tested,
+#  the authors do not claim it is free of errors or that it gives
+#  correct results in all situations. Any publication making use of
+#  this code should include a reference to Hogerheijde & van der Tak,
+#  2000, A&A 362, 697.
+
+set OS = `uname`
+if (($OS != "SunOS")&&($OS != "Linux")&&($OS != "HP-UX")&&($OS != "AIX")) then
+   echo "Unknown OS ... assuming Linux"
+   set OS = Linux
+endif
+
+if !($?RATRAN) then
+  setenv RATRAN `pwd`
+  set path = ($RATRAN/bin $path)
+  setenv RATRANRUN $RATRAN/run
+  echo setenv RATRAN $RATRAN >> ~/.cshrc
+  echo setenv RATRANRUN $RATRANRUN >> ~/.cshrc
+  echo "set path = ($RATRAN/bin $path)" >> ~/.cshrc
+  echo ********************************************************
+  echo *** Wrote setup to ~/.cshrc ... if your setup is in  ***
+  echo *** another location, please move it there yourself. ***
+  echo ********************************************************
+endif
+
+if (-e $RATRANRUN) then
+  rm $RATRANRUN/* >& /dev/null
+else
+  mkdir -p $RATRANRUN
+endif
+
+if (-e amc/Makefile) rm amc/Makefile
+if (-e sky/Makefile) rm sky/Makefile
+
+# Test which compiler is available
+which f77 > /dev/null && set fort = f77
+if !($?fort) then
+  which xlf > /dev/null && set fort = xlf 
+endif
+if !($?fort) then
+  which g77 > /dev/null && set fort = "g77 -fno-automatic" 
+endif
+if !($?fort) then
+  which gfortran > /dev/null && set fort = gfortran 
+endif
+if !($?fort) then
+  which ifort > /dev/null && set fort = ifort 
+endif
+if !($?fort) then
+  echo Error: No Fortran compiler found
+  exit 1
+endif
+
+switch ($OS)
+  case SunOS:
+    $fort molec/readmol.f -o bin/readmol.sol
+    ln -s amc.make.sol amc/Makefile
+    ln -s sky.make.sol sky/Makefile
+  breaksw
+  case HP-UX:
+    $fort molec/readmol.f -o bin/readmol.hp
+    ln -s amc.make.hp amc/Makefile
+    ln -s sky.make.hp sky/Makefile
+  breaksw
+  case AIX:
+    $fort molec/readmol.f -o bin/readmol.aix
+    ln -s amc.make.aix amc/Makefile
+    ln -s sky.make.aix sky/Makefile
+  breaksw
+  case Linux:
+    $fort molec/readmol.f -o bin/readmol.lnx
+    ln -s amc.make.lnx amc/Makefile
+    ln -s sky.make.lnx sky/Makefile
+  breaksw
+  default:
+    $fort molec/readmol.f -o bin/readmol.lnx
+    ln -s amc.make.lnx amc/Makefile
+    ln -s sky.make.lnx sky/Makefile
+  breaksw
+endsw
+echo Set up for $OS with compiler $fort

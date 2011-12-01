@@ -1,0 +1,10 @@
+source=example.mdl2
+outfile=example.pop2
+molfile=hco+.dat
+snr=20
+nphot=1000
+kappa=jena,thin,e5
+velo=v_example.f
+go
+q
+

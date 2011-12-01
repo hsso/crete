@@ -1,0 +1,402 @@
+#! /bin/csh -f
+# use option fvx for verbose output (helps debugging)
+# 
+# C-shell script controlling the run of sky.
+
+# (c) Michiel Hogerheijde / Floris van der Tak 2000
+#     michiel@strw.leidenuniv.nl, vdtak@sron.nl
+#     http://www.sron.rug.nl/~vdtak/ratran/
+
+# This file is part of the 'ratran' molecular excitation and radiative
+# transfer code. The one-dimensional version of this code is publicly
+# available; the two-dimensional version is available on collaborative
+# basis. Although the code has been thoroughly tested, the authors do
+# not claim that it is free of errors or that it gives correct results
+# in all situations. Any publication making use of this code should
+# include a reference to Hogerheijde & van der Tak 2000, A&A 362, 697.
+
+
+### No need to edit anything in this script. If you have problems
+### executing this script, please e-mail the authors, and include
+### keyword file, model file, and screen output/error messages.
+
+set id=SKY                              # set call letters
+set version=(1.96 / fvdt / 10feb2010)   # set version
+setenv LOCAL $RATRANRUN/SKY$$           # place files in LOCAL
+onintr interrupt                        # exit gracefully on interrupt
+limit filesize 900m                     # limit size of output file
+
+echo $id\:                              # say hi!
+echo $id\: Welcome to $id
+echo $id\: Version $version
+echo $id\:
+echo $id\: "(c) Michiel Hogerheijde / Floris van der Tak 2000"
+echo $id\: "    michiel@strw.leidenuniv.nl, vdtak@sron.nl"
+echo $id\: "    http://www.sron.rug.nl/~vdtak/ratran/"
+echo $id\:
+
+#Public installation: auto-configure
+set OS = `uname`
+if ($OS == SunOS)  set ext = sol
+if ($OS == Linux)  set ext = lnx
+if ($OS == Darwin) set ext = lnx
+if ($OS == HP-UX)  set ext = hp
+
+set nkey=12                             # set keywords to default values.
+                                        # currently 12 keywords present.
+set keywords=(source outfile trans pix chan distance incl fg central \
+              units  tnorm format)
+set keyvals=(''     ''      1     32,1 1,1 140.     0.   nofile,0 0,0 \
+              'K'    0. miriad)
+set savevals=(''     ''      1     32,1 1,1 140.     0.  nofile,0 0,0 \
+              'K'    0. miriad)
+
+
+setenv DIM 1                            # set variables for skycommon.inc
+
+set molfile=''
+set velo='grid'
+set kappa=''
+set maxcell=0
+set maxlev=2
+set maxline=1
+set zoom=0
+set super=1
+
+
+if (-r $1) then                         # loop through input file
+  echo $id\: Reading the keywords from $1
+  cp $1 $LOCAL.inp
+else
+  set err="$1 does not exist"
+  goto bonk
+endif
+
+set keep=0  # switch: 0 if code to be recompiled, 1 if old code to be kept
+
+set line=' '
+set l=1
+while ($line != 'q')                 # end ('q') not reached: next calculation
+  set line=`head -$l $LOCAL.inp | tail -1`
+
+  while ($line != 'go')              # 'go' flag not reached: next keyword
+    set keyw=`head -$l $LOCAL.inp | tail -1 | awk -F= '{print $1}'`
+    set valu=`head -$l $LOCAL.inp | tail -1 | awk -F= '{print $2}'`
+
+    set i=0                            # search through list of keywords
+    while ($i < $nkey)
+      @ i++
+      if ($keyw == $keywords[$i]) set keyvals[$i]=$valu
+    end
+
+    @ l++                       # get next line
+    set line=`head -$l $LOCAL.inp | tail -1`      
+   end
+  
+                                    # 'go' flag reached
+
+# Derive associated values for keywords 'trans', 'pix', 'chan', 'central', 'fg'
+     
+
+  set nrx=`echo $keyvals[3] | awk -F, '{print NF}'`
+  set nsky=`echo $keyvals[4] | awk -F, '{print $1}'`
+  set angres=`echo $keyvals[4] | awk -F, '{print $2}'`
+  set zoom=`echo $keyvals[4] | awk -F, '{print $3}'`
+  if ($zoom != '') then
+    set super=`echo $keyvals[4] | awk -F, '{print $4}'`
+  else
+    set zoom=0
+  endif
+  set nchan=`echo $keyvals[5] | awk -F, '{print $1}'`
+  set vres=`echo $keyvals[5] | awk -F, '{print $2}'`
+  if ($keyvals[8] != '') then
+    set fgfg=`echo $keyvals[8] | awk -F, '{print $1}'`
+    set fvel=`echo $keyvals[8] | awk -F, '{print $2}'`
+    if ($fvel == '') set fvel=0.
+    if ($fgfg != 'nofile') then
+     if !(-r $fgfg) then
+       set err="$fgfg does not exist"
+       goto bonk
+       else
+        echo 'Using '$fgfg' as foreground at V=',$fvel' km/s'
+     endif
+    endif
+  endif
+  if ($keyvals[9] != '') then
+    set dcen=`echo $keyvals[9] | awk -F, '{print $1}'`
+    set tcen=`echo $keyvals[9] | awk -F, '{print $2}'`
+  endif
+
+  if (-r $keyvals[1]) then            # read header of grid for skycommon.inc
+    echo $id\: Reading the model from $keyvals[1]
+    cp $keyvals[1] $LOCAL.header
+  else
+    set err="$keyvals[1] does not exist"
+    goto bonk
+  endif
+
+  set k=1
+  set line=`head -$k $LOCAL.header`        # loop through lines up to '@'
+  while ("$line" != "@")
+    set keyw=`head -$k $LOCAL.header | tail -1 | awk -F= '{print $1}'`
+    set valu=`head -$k $LOCAL.header | tail -1 | awk -F= '{print $2}'`
+    if ( $keyw[1] == zmax ) then
+      if ($valu != 0) setenv DIM 2
+    endif
+    if ( $keyw[1] == ncell )   set maxcell = `echo $valu | awk '{print $1+0}'`
+    if ( $keyw[1] == molfile ) set molfile = $valu
+    if ( $keyw[1] == velo  )   set velo    = $valu
+    if ( $keyw[1] == kappa )   set kappa   = $valu
+    @ k++
+    set line=`head -$k $LOCAL.header | tail -1`            # next line
+  end
+
+
+  if ($maxcell < 1) then
+    set err="No valid \'ncell\' found in $$keyvals[1]"
+    goto bonk
+  endif
+  if ($molfile == '') then
+    echo $id\: "No molecular data file provided; assuming continuum only"
+    set velo=$RATRAN/velocity/v0_$DIM'd.f'
+  endif
+  if ($DIM == 1) then
+    echo $id\: Assuming spherical symmetry
+  else
+    echo $id\: Assuming cylindrical symmetry
+  endif
+
+
+# If format=miriad, try to find a unique output name by appending 1..9
+
+  if ($keyvals[12] == miriad) then
+      set savevals[2]=$keyvals[2]
+      set suf=`echo $keyvals[3] | awk -F, '{print $1}'`
+      if ($molfile == '') then
+	set suff=`printf "%.3E" $suf`  # for continuum
+      else
+	set suff=`printf "%.2d" $suf`  # for lines
+      endif
+      set i=0
+      set j=0
+      set name = $keyvals[2]
+      while ($i < 10)            # Try at most 10 times...
+	@ i++
+	if (-e $name'_'$suff) then
+	  echo SKY: Output file $name exists...trying $keyvals[2]$i
+	  set name=$keyvals[2]$i
+	else
+	  set i=10
+	  set j=1
+	  set keyvals[2]=$name
+	endif
+      end   
+      if ($j == 0) then
+	set err="Cannot construct unique output name based on '$keyvals[2]'"
+	goto bonk
+      endif
+  endif
+
+  if (-e $LOCAL.inpy) rm $LOCAL.inpy >& /dev/null  # write keyword file for run
+  set i=0
+  while ($i < $nkey)   
+    @ i++
+    if ($i == 3) echo 'nrx='$nrx >> $LOCAL.inpy   # add 'nrx' for 'trans'
+    if ($i == 4) then
+      echo 'nsky='$nsky     >> $LOCAL.inpy          # replace 'pix' by
+      echo 'angres='$angres >> $LOCAL.inpy          # 'nsky' and 'angres'
+      echo 'zoom='$zoom     >> $LOCAL.inpy          # 'zoom' and 'super'
+      echo 'super='$super   >> $LOCAL.inpy
+      set savevals[4]=$keyvals[4]
+      set keyvals[4]=''
+    endif
+    if ($i == 5) then
+      echo 'nchan='$nchan >> $LOCAL.inpy          # replace 'chan' by
+      echo 'vres='$vres   >> $LOCAL.inpy          # 'nchan' and 'vres'
+      set savevals[5]=$keyvals[5]
+      set keyvals[5]=''
+    endif
+    if ($i == 8) then  # replace fg by fgfg and fvel (if<>'')
+      if ($fgfg != 'nofile') echo 'fgfg='$fgfg >> $LOCAL.inpy
+      if ($fgfg != 'nofile') echo 'fvel='$fvel >> $LOCAL.inpy
+      set savevals[8]=$keyvals[8]
+      set keyvals[8]=''
+    endif
+    if ($i == 9) then  # replace 'central' by 'dcen' and 'tcen' (if>0)
+      if ($dcen != 0) echo 'dcen='$dcen >> $LOCAL.inpy
+      if ($dcen != 0) echo 'tcen='$tcen >> $LOCAL.inpy
+      set savevals[9]=$keyvals[9]
+      set keyvals[9]=''
+    endif
+    if (($keyvals[$i] != '')&&($i != 12)) echo $keywords[$i]=$keyvals[$i] >> $LOCAL.inpy
+  end
+#keyword #12 is the output format, handled outside main program
+
+if ($keep == 1) goto run
+
+# Sizes of molecular data array; uses $RATRAN/bin/readmol
+  if !($molfile == '') then
+    echo $molfile   > $LOCAL.rr.inp
+  if !(-r $molfile) then
+    echo '###ERROR: Cannot read molecular data file' $molfile
+    goto bonk
+  endif
+    $RATRAN/bin/readmol.$ext < $LOCAL.rr.inp > $LOCAL.rr.out
+    set maxlev=`head -1 $LOCAL.rr.out | tail -1`
+    set maxline=`head -2 $LOCAL.rr.out | tail -1`
+  else
+    set maxlev=1
+    set maxline=1
+  endif
+
+
+# Create common block
+
+  echo "c     skycommon.inc -- generated by sky"               > skycommon.inc
+  echo "c              This is an automatically generated file">> skycommon.inc
+  echo "c              Do not tamper with this file"           >> skycommon.inc
+  echo " "                                                     >> skycommon.inc
+  echo "      LOGICAL twodee"                                  >> skycommon.inc
+  echo "      INTEGER maxcell,maxlev,maxline,maxrx,maxsky,"    >> skycommon.inc
+  echo "     +        maxchan"                                 >> skycommon.inc
+  echo " "                                                     >> skycommon.inc
+    if ($DIM == 1) then
+    echo "      PARAMETER (twodee=.false.)"                    >> skycommon.inc
+  else
+    echo "      PARAMETER (twodee=.true.)"                     >> skycommon.inc
+  endif
+  echo "      PARAMETER (maxcell =" $maxcell ")"               >> skycommon.inc
+  echo "      PARAMETER (maxlev =" $maxlev ")"                 >> skycommon.inc
+  echo "      PARAMETER (maxline =" $maxline ")"               >> skycommon.inc
+  echo "      PARAMETER (maxrx =" $nrx ")"                     >> skycommon.inc
+  echo "      PARAMETER (maxsky =" $nsky ")"                   >> skycommon.inc
+  echo "      PARAMETER (maxchan =" $nchan ")"                 >> skycommon.inc
+  echo " "                                                     >> skycommon.inc
+  echo "c     End of definitions generated by sky"             >> skycommon.inc
+  echo "c     Template common.sky follows"                     >> skycommon.inc
+  echo " "                                                     >> skycommon.inc
+  cat $RATRAN/sky/common.sky                                    >> skycommon.inc
+
+# Take velocity model and dust model from header of 'source'
+# If the velocity model is 'grid' -> link the special SKY version of vgrid.
+  if ($velo == $RATRAN/velocity/vgrid_$DIM'd.f') \
+    set velo=$RATRAN/velocity/vgrid_$DIM'd_sky.f'
+  ln -s $velo $LOCAL.velo.f
+  if (-r $cwd/$velo) ln -s $cwd/$velo $LOCAL.velo.f
+  setenv VELO $LOCAL.velo
+####
+
+  if !(-r $velo) then
+    set err = "Velocity model $velo does not exist"
+    goto bonk
+  endif
+
+# Select dust model
+  if ($kappa == '') set kappa=$RATRAN/kappa/kappa_0.f
+# Split comma-separated lists:
+  set nf=`echo $kappa | awk -F, '{print NF}'`
+  if ($nf > 1 ) then
+    set model=`echo $kappa  | awk -F, '{print $1}'`
+    if ($model == 'powerlaw') then                        # values for powerlaw
+      set nu0=`echo $kappa | awk -F, '{print $2}'`
+      set kappa0=`echo $kappa | awk -F, '{print $3}'`
+      set beta=`echo $kappa | awk -F, '{print $4}'`
+      echo "c"                                               >  kappacommon.inc
+      echo "c     Values for powerlaw dust emissivity model" >> kappacommon.inc
+      echo "c"                                               >> kappacommon.inc
+      echo "      DOUBLE PRECISION nu0,kappa0,beta"          >> kappacommon.inc
+      echo "      PARAMETER (nu0    = "$nu0"    )"           >> kappacommon.inc
+      echo "      PARAMETER (kappa0 = "$kappa0" )"           >> kappacommon.inc
+      echo "      PARAMETER (beta   = "$beta"   )"           >> kappacommon.inc
+      set kappa=$RATRAN/kappa/powerlaw.f
+    endif
+    if ($model == 'jena') then                # values for Ossenkopf&Henning
+      set type=`echo $kappa | awk -F, '{print $2}'`
+      set coag=`echo $kappa | awk -F, '{print $3}'`
+      if (-e ratranjena.tab) then
+        echo Using dust opacities from previous calculation
+      else
+        ln -s $RATRAN'/kappa/jena_'$type'_'$coag'.tab' ratranjena.tab
+      endif
+      set kappa=$RATRAN/kappa/jena.f
+    endif
+  endif
+# 
+  ln -s $kappa $LOCAL.kappa.f
+  if (-r $cwd/$kappa) ln -s $cwd/$kappa $LOCAL.kappa.f
+  if !(-r $LOCAL.kappa.f) then       # If no $LOCAL.kappa.f set, bonk
+    set err="Dust model $kappa does not exist"
+    goto bonk
+  endif
+  setenv KAPPA $LOCAL.kappa
+
+# Make the executable
+
+  echo $id\: Making the executable 
+  echo $id\: ...taking velocity field from $velo
+  echo $id\: ...taking dust emissivity from $kappa
+  if ($keyvals[12] == fits) then
+     make fits.exe -f $RATRAN/sky/sky.make.$ext
+     mv fits.exe $LOCAL.exe
+  else
+     make mir.exe -f $RATRAN/sky/sky.make.$ext
+     mv mir.exe $LOCAL.exe
+  endif
+  if !(-e $LOCAL.exe) then
+    set err = "Problems compiling source code"
+    goto bonk
+  endif
+  rm skycommon.inc 
+  rm $LOCAL*.o $LOCAL.velo.f $LOCAL.kappa.f >& /dev/null
+  echo $id\: Compilation successful
+
+run:
+  if !(-x $LOCAL.exe) chmod u+x $LOCAL.exe
+  nice $LOCAL.exe < $LOCAL.inpy             # run
+
+  @ l++                                      # next line input file
+  set line=`head -$l $LOCAL.inp | tail -1`
+  switch ($line)
+    case 'k'
+      set keep=1  
+      @ l++                                      # next line input file
+      set line=`head -$l $LOCAL.inp | tail -1`
+    breaksw
+    case 'c'
+      set keep=0
+      @ l++                                      # next line input file
+      set line=`head -$l $LOCAL.inp | tail -1`
+    breaksw
+    default:
+  endsw
+  setenv DIM 1     # reset to 1D & other saved  values
+  foreach i (2 4 5 9)
+    set keyvals[$i]=$savevals[$i]
+  end
+end
+
+
+
+rm $LOCAL.* >& /dev/null         # clean up garbage
+if (-e ratranjena.tab) rm ratranjena.tab >& /dev/null
+rm $LOCAL.inpy $LOCAL.exe >& /dev/null
+
+exit 0                              # end of normal execution
+
+
+######################################################################
+
+interrupt:                           # exit gracefully on interrupt
+  echo "##### interrupt detected."
+  rm skycommon.inc 
+  rm $LOCAL.* >& /dev/null
+  if (-e ratranjena.tab) rm ratranjena.tab >& /dev/null
+  exit 1  
+
+
+bonk:                                # handling of fatal errors
+  echo "#####" FATAL ERROR: $err.
+  rm skycommon.inc 
+  rm $LOCAL.* >& /dev/null
+  if (-e ratranjena.tab) rm ratranjena.tab >& /dev/null
+  exit 1

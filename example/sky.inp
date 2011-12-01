@@ -1,0 +1,9 @@
+source=example.pop
+outfile=example_sky
+trans=1,3
+pix=128,0.5,32,2
+chan=50,0.1
+distance=140.
+units=K
+go
+q

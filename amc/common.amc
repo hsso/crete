@@ -1,0 +1,175 @@
+c     common.amc
+
+c (c) Michiel Hogerheijde / Floris van der Tak 2000
+c     michiel@strw.leidenuniv.nl, vdtak@sron.nl
+c     http://www.sron.rug.nl/~vdtak/ratran/
+
+c     This file is part of the 'ratran' molecular excitation and
+c     radiative transfer code. The one-dimensional version of this code
+c     is publicly available; the two-dimensional version is available on
+c     collaborative basis. Although the code has been thoroughly tested,
+c     the authors do not claim that it is free of errors or that it gives
+c     correct results in all situations. Any publication making use of
+c     this code should include a reference to Hogerheijde & van der Tak
+c     2000, A&A 362, 697.
+
+c     For revision history see http://www.sron.rug.nl/~vdtak/ratran/
+
+c     Common definitions for amc.
+c     Note that this is only only a "template" file. The amc
+c     c-script will append this to a section it generates
+c     from the keyword input file. If this comment block is not
+c     at the top of the file, you're looking at such an automatically
+c     generated file.
+
+      DOUBLE PRECISION negtaulim
+      PARAMETER (negtaulim = -30.d0)
+
+c     negtaulim: limit to allowed negative tau. exp(-30)=1.1d13 seemed ok...
+
+c     ------------------------------------------------------------
+
+c     Physical parameters and derivatives.
+
+      DOUBLE PRECISION pi,spi,clight,hplanck,kboltz,amu,eps,delta,hpip
+      PARAMETER (pi = 3.14159265d0)        ! pi
+      PARAMETER (spi = 1.77245385d0)       ! sqrt(pi)
+      PARAMETER (clight = 2.997924562d8) ! speed of light
+      PARAMETER (hplanck = 6.626196d-34) ! Planck constant
+      PARAMETER (kboltz = 1.380622d-23)  ! Boltzmann constant
+      PARAMETER (amu = 1.6605402d-27)    ! atomic mass unit
+      PARAMETER (eps=1.0d-30)            ! epsilon
+      PARAMETER (delta=1.0d-10)          ! used in photon propagation
+      PARAMETER (hpip = hplanck*clight/4.0d0/pi/spi) ! scales intensities
+
+c     ------------------------------------------------------------
+
+c     Molecular data 
+      
+      INTEGER nlev,nline,ntrans,ntrans2,lal(maxline),lau(maxline)
+     $  ,lcl(maxtrans),lcu(maxtrans),lcl2(maxtrans2),lcu2(maxtrans2)
+      DOUBLE PRECISION aeinst(maxline),freq(maxline),beinstu(maxline)
+     $  ,beinstl(maxline),amass
+      LOGICAL disk
+c-diskread Uncomment for disk-read option:
+c-diskread
+c-diskread  REAL up(1,1,1),down(1,1,1),
+c-diskread $ up2(1,1,1),down2(1,1,1)
+c-diskread 
+c-diskread  PARAMETER (disk = .true. )
+c-diskread
+c-diskread Uncomment for array option:
+c-diskread
+      DOUBLE PRECISION up(maxtrans,maxcell),down(maxtrans,maxcell),
+     $  up2(maxtrans2,maxcell),down2(maxtrans2,maxcell),knu(maxline
+     $  ,maxcell)
+      PARAMETER (disk = .false.)
+c-diskread
+
+      COMMON /moleci/ nlev,nline,ntrans,ntrans2,lal,lau,lcl,lcu,lcl2
+     $  ,lcu2
+      COMMON /molecdp/ aeinst,beinstl,beinstu,freq,amass
+      COMMON /rates/ up,down,up2,down2,knu
+
+c     nlev:      actual number of levels
+c     nline:     actual number of radiative transitions
+c     ntrans:    actual number of collisional transitions
+c     ntrans2:   actual number of collision transition due to 2nd partner
+c     lal,lau:   lower, upper level of radiative transition
+c     lcl,lcu:   lower, upper level of collisional transition
+c     lcl2,lcu2: lower, upper level of collisional transition (2nd
+c                partner)
+c     aeinst:    Einstein A coefficient
+c     beinstl:   Einstein Blu coefficient (lower -> upper)
+c     beinstu:   Einstein Bul coefficient (upper -> lower)
+c     freq:      frequency of transition
+c     amass:     atomic mass
+c     up,down,up2,down2: collision rates at grid positions (i.e.
+c                        calculated for local temperatures).
+c                        Not used, and dimensioned to 1*1*1 for
+c                        disk-read option.
+c     knu:        dust emissivity values
+c     disk: true if calculated collision rates are kept on disk, 
+c           false if arrays are used for storage.
+
+c     ------------------------------------------------------------
+
+c     Source model data
+
+      DOUBLE PRECISION ra(maxcell),rb(maxcell),za(maxcell),zb(maxcell)
+     $  ,nh2(maxcell),tkin(maxcell),nmol(maxcell),ne(maxcell),te(maxcell
+     $  ),doppb(maxcell),vr(maxcell),vz(maxcell),va(maxcell)
+     $  ,tdust(maxcell),pops(maxlev,maxcell),rmax,zmax,gas2dust,top,side
+      INTEGER ncell
+
+      COMMON /sourcei/ ncell
+      COMMON /sourcedp/ ra,rb,za,zb,nh2,tkin,nmol,ne,te,doppb,vr,vz,va
+     $  ,tdust,pops,rmax,zmax,gas2dust,top,side
+
+c     Joint grid information 1D and 2D
+c
+c     ra,rb:   inner,outer boundary in r or R [m]
+c     za,zb:   inner,outer boundary in z [m]
+c     nh2:     H2 number density [m-3]
+c     tkin:    kinetic temperature [K]
+c     nmol:    number density of molecule [m-3]
+c     ne:      number density of 2nd collision partner (=e) [m-3]
+c     te:      kinetic temperature of 2nd collision partner [K]
+c     doppb:   doppler tubulent line width [m/s]
+c     vel(3):  systematic velocity vector (r,-,-) or (R,z,phi) [m/s]
+c     tdust:   temperature of the dust [K]
+c
+c     Thermal contribution is internally added to Doppler b, but not 
+c     written out.
+c     (see input routine for units input/output format, units)
+c
+c     pops:   level populations 
+c     ncell: actual number of grid cells
+
+c     ------------------------------------------------------------
+
+c     Radiation field.
+
+      INTEGER nphot(maxcell)
+      DOUBLE PRECISION phot(maxline+2,max_phot),jbar(maxline)
+     $  ,tcmb,norm(maxline),tnorm,cmb(maxline),
+     $  dust(maxline,maxcell)
+
+      COMMON /photi/ nphot
+      COMMON /photdp/ phot,jbar,tcmb,norm,tnorm,cmb,dust
+
+c     phot:  the photon packages: 
+c              intensities + position + direction + v
+c              (maxline)     r          phi     delta_v   : 1d
+c              (maxline)     R,z       theta,phi delta_v  : 2d
+c
+c            (maxline+5: 1d requires r,phi,delta_v
+c                        2d requires R,z,theta,phi,delta_v)
+c
+c     nphot: actual number of photon packages
+c     tcmb:  temperature of CMB
+c     passb: width of passband in m/s
+c     jbar:  radiation field in grid position and at line
+c     found: (cumulative) number of photons found in each cell
+c     norm: intensity normalization scheme
+c     tnorm: blackbody temperature of normalization scheme (=Tcmb by def)
+c     cmb           -- intensity of cosmic microwave background
+c     dust          -- intensity of dust
+
+c     ------------------------------------------------------------
+
+c     Miscellaneous
+
+      INTEGER seed
+      LOGICAL second
+      DOUBLE PRECISION minpop
+
+      COMMON /blocki/ seed
+      COMMON /blockr/ minpop
+      COMMON /blockl/ second
+	
+c     minpop:  minimum population tested on convergence
+c     seed:    random number generator seed (for ran1) as starter
+c     niter:   number of Monte Carlo interations = crossing times
+c     second:  true if there is a second collision partner
+

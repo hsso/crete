@@ -1,0 +1,10 @@
+source=example.mdl
+outfile=example.pop
+molfile=hco+.dat
+snr=20
+nphot=1000
+kappa=jena,thin,e5
+seed=1971
+go
+q
+

@@ -1,0 +1,380 @@
+#! /bin/csh -f
+# debug option: /bin/csh -fvx
+# 
+# C-shell script controlling the run of amc.
+
+# (c) Michiel Hogerheijde / Floris van der Tak 2000
+#     michiel@strw.leidenuniv.nl, vdtak@sron.nl
+#     http://www.sron.rug.nl/~vdtak/ratran/
+
+# This file is part of the 'ratran' molecular excitation and radiative
+# transfer code. The one-dimensional version of this code is publicly
+# available; the two-dimensional version is available on collaborative
+# basis. Although the code has been thoroughly tested, the authors do
+# not claim that it is free of errors or that it gives correct results
+# in all situations. Any publication making use of this code should
+# include a reference to Hogerheijde & van der Tak 2000, A&A 362, 697.
+
+
+### No need to edit anything in this script. If you have problems
+### executing this script, please e-mail the authors, and include
+### keyword file, model file, and screen output/error messages.
+
+
+set id = AMC                             # set call letters
+set version = (1.96 / fvdt / 09nov2011)  # set version
+setenv LOCAL $RATRANRUN/AMC$$            # set LOCAL to run dir
+onintr interrupt                         # exit gracefully on interrupt
+
+limit filesize 10m                       # limit size of output file
+
+echo $id\:                               # say hi!
+echo $id\: Welcome to $id
+echo $id\: Version $version
+echo $id\:
+echo $id\: "(c) Michiel Hogerheijde / Floris van der Tak 2000"
+echo $id\: "    michiel@strw.leidenuniv.nl, vdtak@sron.nl"
+echo $id\: "    http://www.sron.rug.nl/~vdtak/ratran/"
+echo $id\:
+
+#Operating system dependent installation
+set OS = `uname`
+if ($OS == SunOS)  set ext = sol
+if ($OS == Linux)  set ext = lnx
+if ($OS == Darwin) set ext = lnx
+if ($OS == HP-UX)  set ext = hp
+ 
+# mrh/09nov04: added keyword number 11: fixset, default 1.e-6
+# mrh/08dec04: added keyword number 12: trace, default 'off'
+
+set nkey=12                           # set keywords to default values.
+
+set keywords=(molfile  source  velo  outfile  seed  snr \
+              minpop nphot kappa tnorm fixset trace)
+set keyvals=( ''       ''      ''    ''       $$    10  \
+              1.e-6  100 '' 0. 1.e-6 'off')
+
+setenv DIM 1                          # default array sizes
+
+set maxcell=0
+set maxlev=2
+set maxline=1
+set maxtrans=2
+set maxtrans2=1
+set maxtemp=1
+set maxtemp2=1
+
+
+if (-r $1) then                      # loop through input file
+  echo $id\: Reading the keywords from $1
+  cp $1 $LOCAL.inp
+else
+  set err="$1 does not exist"
+  goto bonk
+endif
+
+set keep=0 # switch: 0 if code to be recompiled, 1 if old code to be kept
+
+set line=' '
+set l=1
+while ("$line" != 'q')               # end ('q') not reached: next calculation
+  set line=`head -$l $LOCAL.inp | tail -1`
+
+  while ("$line" != 'go')                # 'go' flag not reached: next keyword
+    set keyw=`head -$l $LOCAL.inp | tail -1 | awk -F= '{print $1}'`
+    set valu=`head -$l $LOCAL.inp | tail -1 | awk -F= '{print $2}'`
+
+    set i=0                              # search through list of keywords
+    while ($i < $nkey)
+      @ i++
+      if ($keyw == $keywords[$i]) set keyvals[$i]=$valu
+    end
+
+    @ l++                         # get next line
+    set line=`head -$l $LOCAL.inp | tail -1`      
+  end
+
+                                          # 'go' flag reached
+
+
+  if !(-e $keyvals[1]) set keyvals[1]=$RATRAN/molec/$keyvals[1] # add path to molfile
+
+  if (-e $LOCAL.inpy) rm $LOCAL.inpy >& /dev/null  # write keyword file for run
+  set i=0
+  while ($i < $nkey)
+    @ i++
+    if ($keyvals[$i] != '') echo $keywords[$i]=$keyvals[$i] >> $LOCAL.inpy
+  end
+
+  if (-r $keyvals[2]) then               # read header of grid for common block
+    echo $id\: Reading the model from $keyvals[2]
+    cp $keyvals[2] $LOCAL.header
+  else
+    set err="$keyvals[2] does not exist"
+    goto bonk
+  endif
+
+  set kmax = `wc -l $LOCAL.header | awk '{print $1}'`
+  set k=1
+  set line=`head -$k $LOCAL.header`        # loop through lines up to '@'
+  while ("$line" != "@" && $k < $kmax)     #  ... or end of file (fvdt 24nov04)
+    set keyw=`head -$k $LOCAL.header | tail -1 | awk -F= '{print $1}'`
+    set valu=`head -$k $LOCAL.header | tail -1 | awk -F= '{print $2}'`
+    if ( $keyw[1] == zmax ) then
+      if ($valu != 0) setenv DIM 2
+    endif
+    if ( $keyw[1] == ncell ) set maxcell=$valu
+    @ k++
+    set line=`head -$k $LOCAL.header | tail -1`            # next line
+  end
+
+  if ($maxcell < 1) then
+    set err="No valid 'ncell' found in $keyvals[2]"
+    goto bonk
+  endif
+  if ($DIM == 1) then
+    echo $id\: Assuming spherical symmetry
+  else
+    echo $id\: Assuming cylindrical symmetry
+  endif
+
+if ($keep == 1) goto run
+
+# Check if molecular data file is readable
+if !(-r $keyvals[1]) then
+  set err = "Cannot read molecular data file $keyvals[1]"
+  goto bonk
+endif
+# Sizes of molecular data array; uses $RATRAN/bin/readmol
+  echo $keyvals[1]  > $LOCAL.rr.inp
+#no whitespace in quotes -- fvdt 12apr01
+#  echo 'eof' >> $LOCAL.rr.inp  (no longer needed with 2003 data format)
+  $RATRAN/bin/readmol.$ext < $LOCAL.rr.inp > $LOCAL.rr.out
+# Do not proceed if the molecular data file does not meet Ratran specs (fvdt 02jul09)
+grep -i error $LOCAL.rr.out
+if (`grep -i error $LOCAL.rr.out | wc -l ` > 0) then
+  set err = 'Molecular data file does not meet Ratran specs'
+  goto bonk
+endif
+  set maxlev=`head -1 $LOCAL.rr.out | tail -1`
+  set maxline=`head -2 $LOCAL.rr.out | tail -1`
+  set maxtrans=`head -3 $LOCAL.rr.out | tail -1`
+  set maxtrans2=`head -4 $LOCAL.rr.out | tail -1`
+  set maxtemp=`head -5 $LOCAL.rr.out | tail -1`
+  set maxtemp2=`head -6 $LOCAL.rr.out | tail -1`
+  echo $id\: Read molecular data from $keyvals[1]
+
+# Create common block
+  echo "c     amccommon.inc -- generated by amc"                 > amccommon.inc
+  echo "c              This is an automatically generated file" >> amccommon.inc
+  echo "c              Do not tamper with this file"            >> amccommon.inc
+  echo " "                                                      >> amccommon.inc
+  echo "      LOGICAL twodee"                                   >> amccommon.inc
+  echo "      INTEGER max_phot,maxtrans,maxtrans2,maxcell,"     >> amccommon.inc
+  echo "     +  maxlev,maxtemp,maxtemp2,maxline"                >> amccommon.inc
+  echo " "                                                      >> amccommon.inc
+    if ($DIM == 1) then
+    echo "      PARAMETER (twodee=.false.)"                     >> amccommon.inc
+  else
+    echo "      PARAMETER (twodee=.true.)"                      >> amccommon.inc
+  endif
+  echo "      PARAMETER (maxcell =" $maxcell ")"                >> amccommon.inc
+  echo "      PARAMETER (maxlev =" $maxlev ")"                  >> amccommon.inc
+  echo "      PARAMETER (maxline =" $maxline ")"                >> amccommon.inc
+  echo "      PARAMETER (maxtrans =" $maxtrans ")"              >> amccommon.inc
+  echo "      PARAMETER (maxtrans2 =" $maxtrans2 ")"            >> amccommon.inc
+  echo "      PARAMETER (maxtemp =" $maxtemp ")"                >> amccommon.inc
+  echo "      PARAMETER (maxtemp2 =" $maxtemp2 ")"              >> amccommon.inc
+  echo "      PARAMETER (max_phot = 100000 )"                   >> amccommon.inc
+  echo " "                                                      >> amccommon.inc
+  echo "c     End of definitions generated by amc"              >> amccommon.inc
+  echo "c     Template common.amc follows"                      >> amccommon.inc
+  echo " "                                                      >> amccommon.inc
+  cat $RATRAN/amc/common.amc >> amccommon.inc
+
+
+# Select velocity field model
+  if ($keyvals[3] == '') set keyvals[3]='grid'             # default=grid
+# Try to locate 'velo' in ./ or $RATRAN/velocity, and with trailing .f:
+  if ($keyvals[3] == 'grid') then
+    set velofile=$RATRAN/velocity/vgrid_$DIM'd.f'
+  else
+    if (-r $keyvals[3]) then
+      if (-r $cwd/$keyvals[3]) then
+        set velofile=$cwd/$keyvals[3]
+      else
+        set velofile=$keyvals[3]
+      endif
+    else
+      if (-r $keyvals[3].f) then
+        if (-r $cwd/$keyvals[3].f) then
+          set velofile=$cwd/$keyvals[3].f
+        else
+          set velofile=$keyvals[3].f
+        endif
+      else
+        if (-r $RATRAN/velocity/$keyvals[3]) then
+        set velofile=$RATRAN/velocity/$keyvals[3]
+        else
+          if (-r $RATRAN/velocity/$keyvals[3].f) then
+            set velofile=$RATRAN/velocity/$keyvals[3].f
+          endif
+	endif
+      endif
+    endif
+  endif
+  if !(-r $velofile) then    # If no $LOCAL.velo.f set, bonk
+    set err="Velocity model $keyvals[4] does not exist"
+    goto bonk
+  endif
+  if (-e $LOCAL.velo.f) then
+    echo Using velocity field from previous calculation
+  else
+    ln -s $velofile $LOCAL.velo.f
+  endif
+  setenv VELO $LOCAL.velo
+
+# Select dust model
+  if ($keyvals[9] == '') set keyvals[9]=$RATRAN/kappa/kappa_0.f    # default=0
+# Split comma separated lists:
+  set nf=`echo $keyvals[9] | awk -F, '{print NF}'`
+  if ($nf > 1) then
+    set model=`echo $keyvals[9] | awk -F, '{print $1}'`
+    if ($model == 'powerlaw') then                        # values for powerlaw
+      set nu0=`echo $keyvals[9] | awk -F, '{print $2}'`
+      set kappa0=`echo $keyvals[9] | awk -F, '{print $3}'`
+      set beta=`echo $keyvals[9] | awk -F, '{print $4}'`
+      echo "c"                                               >  kappacommon.inc
+      echo "c     Values for powerlaw dust emissivity model" >> kappacommon.inc
+      echo "c"                                               >> kappacommon.inc
+      echo "      DOUBLE PRECISION nu0,kappa0,beta"          >> kappacommon.inc
+      echo "      PARAMETER (nu0    = "$nu0"    )"           >> kappacommon.inc
+      echo "      PARAMETER (kappa0 = "$kappa0" )"           >> kappacommon.inc
+      echo "      PARAMETER (beta   = "$beta"   )"           >> kappacommon.inc
+      set kappafile=$RATRAN/kappa/powerlaw.f
+    endif
+    if ($model == 'jena') then             # values for Ossenkopf&Henning
+      set type=`echo $keyvals[9] | awk -F, '{print $2}'`
+      set coag=`echo $keyvals[9] | awk -F, '{print $3}'`
+      if (-e ratranjena.tab) then
+        echo Using dust opacities from previous calculation
+      else
+        ln -s $RATRAN'/kappa/jena_'$type'_'$coag'.tab' ratranjena.tab
+      endif
+      set kappafile=$RATRAN/kappa/jena.f
+    endif
+  else
+# Try to locate 'kappa' in ./ or $RATRAN/kappa, and with trailing .f:
+    if (-r $keyvals[9]) then
+      if (-r $cwd/$keyvals[9]) then
+        set kappafile=$cwd/$keyvals[9] 
+      else
+        set kappafile=$keyvals[9] 
+      endif
+    else
+      if (-r $keyvals[9].f) then
+        if (-r $cwd/$keyvals[9]) then
+          set kappafile=$cwd/$keyvals[9].f
+        else
+          set kappafile=$keyvals[9].f
+        endif
+      else
+        if (-r $RATRAN/kappa/$keyvals[9]) then
+          set kappafile=$RATRAN/kappa/$keyvals[9] 
+        else
+          if (-r $RATRAN/kappa/$keyvals[9].f) then
+            set kappafile=$RATRAN/kappa/$keyvals[9].f
+          endif
+        endif
+      endif
+    endif
+  endif
+  if (-e $LOCAL.kappa.f) rm $LOCAL.kappa.f
+  ln -s $kappafile $LOCAL.kappa.f
+  if !(-r $LOCAL.kappa.f) then       # If no $LOCAL.kappa.f set, bonk
+    set err="Dust model $kappafile does not exist"
+    goto bonk
+  endif
+  setenv KAPPA $LOCAL.kappa
+
+# Make the executable
+  echo $id\: Making the executable 
+  echo $id\: ...taking velocity field from $keyvals[3]
+  echo $id\: ...taking dust emissivity from $keyvals[9]
+  make -f $RATRAN/amc/amc.make.$ext
+  if !(-e $LOCAL.exe) then
+    set err = "Problems compiling source code"
+    goto bonk
+  endif
+  rm amccommon.inc 
+  rm $LOCAL*.o $LOCAL.velo.f $LOCAL.kappa.f >& /dev/null
+  echo $id\: Compilation successful
+
+run:
+  nice $LOCAL.exe < $LOCAL.inpy                              # run
+
+# Add version, velo= and kappa= to output file.
+  echo '#AMC version: '$version > $LOCAL.out.head
+  awk -F= '{if (a==0) print $0; if ($1=="molfile") a=1}' $keyvals[4] >> $LOCAL.out.head
+  awk -F= '{if (a==1) print $0; if ($1=="molfile") a=1}' $keyvals[4] >  $LOCAL.out.tail
+  echo 'velo='$velofile >> $LOCAL.out.head
+  echo 'kappa='$keyvals[9] >> $LOCAL.out.head
+  cat $LOCAL.out.head $LOCAL.out.tail >! $keyvals[4]
+
+  @ l++                                      # next line input file
+  set line=`head -$l $LOCAL.inp | tail -1`
+  switch ($line)
+    case 'k'
+      set keep=1  
+      @ l++                                      # next line input file
+      set line=`head -$l $LOCAL.inp | tail -1`
+    breaksw
+    case 'c'
+      set keep=0
+      @ l++                                      # next line input file
+      set line=`head -$l $LOCAL.inp | tail -1`
+    breaksw
+    default:
+  endsw
+  setenv DIM 1      # reset to 1d
+end
+
+
+
+rm $LOCAL.* amccommon.inc >& /dev/null            # clean up garbage
+if (-e ratranjena.tab) rm ratranjena.tab >& /dev/null
+rm $LOCAL.inpy $LOCAL.exe >& /dev/null
+
+
+exit 0                              # end of normal execution
+
+
+######################################################################
+
+interrupt:                           # exit gracefully on interrupt
+  echo "##### Interrupt detected ..."
+  echo "##### "
+  if (-e $keyvals[4]_000001.his) then
+    echo "##### Saving last results..."
+    set lastfile = `ls -rt1 $keyvals[4]_*.his | tail -1`
+    awk -F= '{if (a==0) print $0; if ($1=="molfile") a=1}' $lastfile > $LOCAL.out.head
+    awk -F= '{if (a==1) print $0; if ($1=="molfile") a=1}' $lastfile > $LOCAL.out.tail
+    echo 'velo='$velofile >> $LOCAL.out.head
+    echo 'kappa='$keyvals[9] >> $LOCAL.out.head
+    cat $LOCAL.out.head $LOCAL.out.tail >! $keyvals[4]
+  endif
+  echo "##### Cleaning up..."
+  echo "##### "
+  if (-e amccommon.inc) rm amccommon.inc >& /dev/null
+  rm $LOCAL* >& /dev/null
+  if (-e ratranjena.tab) rm ratranjena.tab >& /dev/null
+  exit 1  
+
+
+bonk:                                # handling of fatal errors
+  echo "#####" FATAL ERROR: $err.
+  if (-e amccommon.inc) rm amccommon.inc >& /dev/null
+  rm $LOCAL* >& /dev/null
+  if (-e ratranjena.tab) rm ratranjena.tab >& /dev/null
+  exit 1
+
