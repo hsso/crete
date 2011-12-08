@@ -32,8 +32,8 @@ c     dimensionality of the source is apparent.
       INTEGER iphot,id,iline,ispline,nspline,naver,iaver,dpos,posn
       DOUBLE PRECISION rpos,phi,deltav,cosphi,sinphi,dummy,ran1
       DOUBLE PRECISION bac,ds,b,dsplus,dsminn,v1,v2,vfunc,s1,s2
-     $     ,vfac,s,v,vfacsub,jnu,alpha
-      EXTERNAL ran1,vfunc
+     $     ,vfac,s,v,vfacsub,jnu,alpha,planck
+      EXTERNAL ran1,vfunc,planck
       DOUBLE PRECISION snu,tau(maxline),dtau,psi,phif,rnext
       LOGICAL firststep
       DOUBLE PRECISION vel(3)
