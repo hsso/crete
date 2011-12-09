@@ -42,7 +42,7 @@ COMMON = $(RATRAN)/sky/getinputs.f \
       $(VELO).f \
       $(KAPPA).f
 
-FITSLIB = -L$(CFITSIO) -lcfitsio
+FITSLIB = -lcfitsio
 # MIRLIBS = `mirlibs`
 # if this fails, try
 #MIRLIBS = -L$(MIR)/lib/linux -L/usr/X11R6/lib -lmir -llinpack -lpgplot -lm
