@@ -20,7 +20,7 @@
 #FORT = g77
 #OPT = -I. -O2 -fno-automatic 
 FORT = gfortran
-OPT = -I. -O2
+OPT = -I. -O2 -ffixed-line-length-100
 #FORT = ifort
 #OPT = -I. -O2
 
