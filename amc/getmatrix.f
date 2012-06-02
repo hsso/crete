@@ -64,7 +64,7 @@ c     ------------------------------------------------------------
      $ 1.448e-5, 7.867e-6, 9.250e-6, 1.038e-4, 5.593e-5, 1.166e-5, 0./),
      $ (/ maxlev,maxlev /) ) ! IR pumping ortho-water
 
-      g_ir = g_ir/1.55**2 ! scale by rh**2
+      g_ir = g_ir/1.88**2 ! scale by rh**2
       
       do t=1,nline              ! radiative transitions (beinstl = Blu)
         k=lau(t)
