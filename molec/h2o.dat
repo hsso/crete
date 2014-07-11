@@ -1,0 +1,64 @@
+!MOLECULE
+Ortho H2O spectroscopy from JPL / Holger Müller
+!MOLECULAR WEIGHT
+18.0
+!NUMBER OF ENERGY LEVELS
+7
+!LEVEL + ENERGIES(cm^-1) + WEIGHT + J
+  1   23.794356    9.0 1_0_1
+  2   42.371741    9.0 1_1_0
+  3   79.496382    15.0 2_1_2
+  4   134.901638    15.0 2_2_1
+  5   136.761650    21.0 3_0_3
+  6   173.365803    21.0 3_1_2
+  7   212.156362    21.0 3_2_1
+!NUMBER OF RADIATIVE TRANSITIONS
+9
+!TRANS + UP + LOW + EINSTEINA(s^-1) + FREQ(GHz) + E_u(K)
+    1     2     1  3.458e-03         556.936        61.0
+    2     3     1  5.593e-02         1669.905        114.4
+    3     4     2  2.564e-01         2773.977        194.1
+    4     4     3  3.058e-02         1661.008        194.1
+    5     5     3  5.048e-02         1716.770        196.8
+    6     6     4  2.634e-03         1153.127        249.4
+    7     6     5  1.648e-02         1097.365        249.4
+    8     7     3  3.318e-01         3977.047        305.3
+    9     7     6  2.288e-02         1162.912        305.3
+!NUMBER OF COLL PARTNERS
+2
+! COLLISION PARTNER
+3 oH2O - oH2O from Buffa et al. 2000
+! NUMBER OF COLLISIONAL TRANSITIONS
+9
+! NUMBER OF COLLISION TEMPERATURES
+1
+! COLLISION TEMPERATURES
+100.0
+! TRANS + UP + LOW + RATE COEFFS(cm^3 s^-1)
+1 2 1 1.413e-09
+2 3 1 1.569e-09
+3 4 2 1.044e-09
+4 4 3 1.124e-09
+5 5 3 1.269e-09
+6 6 4 3.304e-10
+7 6 5 1.065e-09
+8 7 3 3.174e-10
+9 7 6 1.122e-09
+!COLLISIONS BETWEEN  
+4  H2O - electrons from Zakharov et al (2007)
+!NUMBER OF COLL TRANS
+9
+!NUMBER OF COLL TEMPS
+2
+!COLL TEMPS
+40.0 10000.0 
+!TRANS + UP + LOW + COLLRATES(cm^3 s^-1)
+1 2 1 1.724e-06 4.130e-07
+2 3 1 6.646e-07 2.080e-07
+3 4 2 5.316e-07 1.898e-07
+4 4 3 3.701e-07 1.156e-07
+5 5 3 5.455e-07 1.719e-07
+6 6 4 1.111e-07 3.166e-08
+7 6 5 8.231e-07 2.317e-07
+8 7 3 1.981e-07 7.770e-08
+9 7 6 9.376e-07 2.677e-07
