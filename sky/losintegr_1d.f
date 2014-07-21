@@ -132,6 +132,7 @@ c     Find distance to nearest cell edge
       if (debug) write(*,*) '[debug] finding closest cell edge'
 
           if ((dabs(phi).le.pi/2.d0).or.(posn.eq.1)) then
+            goto 200
             dpos=+1
             rnext=rb(posn)*(1.d0+delta)
             bac=4.d0*((rpos*cosphi)**2.d0-rpos**2.d0+rnext**2.d0)
