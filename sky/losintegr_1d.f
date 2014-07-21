@@ -118,26 +118,17 @@ c     Find rpos,zpos,theta,phi of los where it enters front of source
           phi=dmod(phi+pi,2.d0*pi)-pi
 
           posn=ncell            ! Grid position of start is always ncell in 1D
-
-          phi = pi/2.
-          rpos = dxdy
+          
           costheta=1.d0
           sintheta=0.d0
           cosphi=dcos(phi)
           sinphi=dsin(phi)
           
-          do ichan=1,ncell
-            if (dxdy.lt.rb(ichan)) then
-              posn=ichan
-              goto 100
-            endif
-          enddo
 
   100     continue              ! Return here for moving thru next cell
 
 c     Find distance to nearest cell edge
  
-      write(*,*) phi, rpos, posn
       if (debug) write(*,*) '[debug] finding closest cell edge'
 
           if ((dabs(phi).le.pi/2.d0).or.(posn.eq.1)) then
