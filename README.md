@@ -21,4 +21,4 @@ you can instead run the csh script to install the program:
 
 After running either of these scripts you can add the definition of the RATRAN
 and RATRANRUN environment variables to initialize these variables for login
-shells in the shell-specific files `~/.bashrc` or `~/.cshrc`.
+shells in the shell-specific files `~/.bashrc`, `~/.zshrc` or `~/.cshrc`.
