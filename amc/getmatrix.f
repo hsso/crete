@@ -25,7 +25,7 @@ c     of conservation in row nlev+1
      $     ,up2_loc(maxtrans2),down2_loc(maxtrans2),mtrx(maxlev+1,maxlev
      $     +1) ,colli(maxlev,maxlev),ctot(maxlev)
       DOUBLE PRECISION colli2(maxlev,maxlev),ctot2(maxlev), 
-     $ g_ir(maxlev,maxlev),ctot_ir(maxlev)
+     $ g_ir(maxlev,maxlev),ctot_ir(maxlev), rh
       
 c     id:   current grid position
 c     s,t:     counters
@@ -54,6 +54,7 @@ c     ------------------------------------------------------------
         enddo
       enddo
 
+! IR pumping ortho-water
 !       g_ir = reshape(
 !      $ (/0., 1.654e-5,2.464e-5, 8.486e-5, 1.471e-4, 1.359e-5, 2.905e-5,
 !      $ 1.423e-5, 0., 1.882e-4, 1.696e-5, 1.118e-5, 9.143e-5, 1.294e-5,
@@ -62,8 +63,9 @@ c     ------------------------------------------------------------
 !      $ 6.620e-5, 5.189e-6, 1.113e-5, 1.982e-5, 0., 1.013e-5, 5.302e-5,
 !      $ 4.428e-6, 4.090e-5, 1.006e-4, 5.843e-6, 7.287e-6, 0., 9.177e-6,
 !      $ 1.448e-5, 7.867e-6, 9.250e-6, 1.038e-4, 5.593e-5, 1.166e-5, 0./),
-!      $ (/ maxlev,maxlev /) ) ! ir pumping ortho-water
+!      $ (/ maxlev,maxlev /) )
 
+! IR pumping para-water
 !       g_ir = reshape(
 !      $ (/0., 2.1944012E-05, 2.4522215E-04, 1.5621181E-05, 1.0322739E-04,
 !      $   1.4237256E-05, 6.7647539E-07,
@@ -79,9 +81,11 @@ c     ------------------------------------------------------------
 !      $   6.0966895E-06, 0., 8.9717369E-06,
 !      $ 3.4442709E-07, 7.2605194E-06, 6.8272238E-05, 1.5878764E-05,
 !      $   1.0893742E-04, 7.1137065E-06, 0./),
-!      $ (/ maxlev,maxlev /) ) ! IR pumping para-water
+!      $ (/ maxlev,maxlev /) )
 
-!       g_ir = g_ir/5.**2 ! scale by rh**2
+! scale by rh**2
+!       rh = 1 ! heliocentric distance in AU
+!       g_ir = g_ir/rh**2
       
       do t=1,nline              ! radiative transitions (beinstl = Blu)
         k=lau(t)
