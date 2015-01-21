@@ -22,3 +22,9 @@ you can instead run the csh script to install the program:
 After running either of these scripts you can add the definition of the RATRAN
 and RATRANRUN environment variables to initialize these variables for login
 shells in the shell-specific files `~/.bashrc`, `~/.zshrc` or `~/.cshrc`.
+
+
+The IR radiation is specified as pumping coefficients in the file
+`amc/getmatrix.f`.  One needs to use the `g_ir` array for ortho- or
+para-water by uncommenting the corresponding definition and include
+the heliocentric distance to scale the coefficients in lines 103 and 104.
