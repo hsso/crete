@@ -100,11 +100,12 @@ c     Source model data
      $  ,nh2(maxcell),tkin(maxcell),nmol(maxcell),ne(maxcell),te(maxcell
      $  ),doppb(maxcell),vr(maxcell),vz(maxcell),va(maxcell)
      $  ,tdust(maxcell),pops(maxlev,maxcell),rmax,zmax,gas2dust,top,side
+     $  ,rh     
       INTEGER ncell
 
       COMMON /sourcei/ ncell
       COMMON /sourcedp/ ra,rb,za,zb,nh2,tkin,nmol,ne,te,doppb,vr,vz,va
-     $  ,tdust,pops,rmax,zmax,gas2dust,top,side
+     $  ,tdust,pops,rmax,zmax,gas2dust,top,side,rh
 
 c     Joint grid information 1D and 2D
 c
@@ -118,6 +119,7 @@ c     te:      kinetic temperature of 2nd collision partner [K]
 c     doppb:   doppler tubulent line width [m/s]
 c     vel(3):  systematic velocity vector (r,-,-) or (R,z,phi) [m/s]
 c     tdust:   temperature of the dust [K]
+c     rh:      heliocentric distance to the model [AU]
 c
 c     Thermal contribution is internally added to Doppler b, but not 
 c     written out.
