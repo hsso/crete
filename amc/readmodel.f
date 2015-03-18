@@ -54,6 +54,7 @@ c     debug:     turns debugging output on/off
       ncell=0
       tcmb=2.735d0
       gas2dust=100.d0
+      rh = 1.d0
       columns=' '
       
       open(unit=11,file=modelfile,status='old',err=911)
@@ -95,6 +96,7 @@ c     Search keywords (case sensitive)
       if (keyw(1:5).eq.'ncell') read(valu,*) ncell
       if (keyw(1:4).eq.'tcmb') read(valu,*) tcmb
       if (keyw(1:8).eq.'gas:dust') read(valu,*) gas2dust
+      if (keyw(1:2).eq.'rh') read(valu,*) rh
       if (keyw(1:7).eq.'columns') columns=valu(1:length(valu))
 
       goto 10                   ! Next line
